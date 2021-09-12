@@ -27,9 +27,9 @@ export function getBlobFromURL(
     href = href.replace(/.*\//, '')
   }
 
-  if (cache[href]) {
-    return cache[href]
-  }
+  // if (cache[href]) {
+  //   return cache[href]
+  // }
 
   // cache bypass so we dont have CORS issues with cached images
   // ref: https://developer.mozilla.org/en/docs/Web/API/XMLHttpRequest/Using_XMLHttpRequest#Bypassing_the_cache
@@ -61,76 +61,76 @@ export function getBlobFromURL(
 
   const deferred = window.fetch
     ? window
-        .fetch(url)
-        .then((res) =>
-          res.blob().then((blob) => ({
-            blob,
-            contentType: res.headers.get('Content-Type') || '',
-          })),
-        )
-        .then(
-          ({ blob, contentType }) =>
-            new Promise<{ blob: string; contentType: string }>(
-              (resolve, reject) => {
-                const reader = new FileReader()
-                reader.onloadend = () =>
-                  resolve({
-                    contentType,
-                    blob: reader.result as string,
-                  })
-                reader.onerror = reject
-                reader.readAsDataURL(blob)
-              },
-            ),
-        )
-        .then(({ blob, contentType }) => ({
-          contentType,
-          blob: getDataURLContent(blob),
-        }))
+      .fetch(url)
+      .then((res) =>
+        res.blob().then((blob) => ({
+          blob,
+          contentType: res.headers.get('Content-Type') || '',
+        })),
+      )
+      .then(
+        ({ blob, contentType }) =>
+          new Promise<{ blob: string; contentType: string }>(
+            (resolve, reject) => {
+              const reader = new FileReader()
+              reader.onloadend = () =>
+                resolve({
+                  contentType,
+                  blob: reader.result as string,
+                })
+              reader.onerror = reject
+              reader.readAsDataURL(blob)
+            },
+          ),
+      )
+      .then(({ blob, contentType }) => ({
+        contentType,
+        blob: getDataURLContent(blob),
+      }))
     : new Promise<{ blob: string; contentType: string } | null>(
-        (resolve, reject) => {
-          const req = new XMLHttpRequest()
+      (resolve, reject) => {
+        const req = new XMLHttpRequest()
 
-          const timeout = () => {
+        const timeout = () => {
+          reject(
+            new Error(
+              `Timeout of ${TIMEOUT}ms occured while fetching resource: ${url}`,
+            ),
+          )
+        }
+
+        const done = () => {
+          if (req.readyState !== 4) {
+            return
+          }
+
+          if (req.status !== 200) {
             reject(
               new Error(
-                `Timeout of ${TIMEOUT}ms occured while fetching resource: ${url}`,
+                `Failed to fetch resource: ${url}, status: ${req.status}`,
               ),
             )
+            return
           }
 
-          const done = () => {
-            if (req.readyState !== 4) {
-              return
-            }
-
-            if (req.status !== 200) {
-              reject(
-                new Error(
-                  `Failed to fetch resource: ${url}, status: ${req.status}`,
-                ),
-              )
-              return
-            }
-
-            const encoder = new FileReader()
-            encoder.onloadend = () => {
-              resolve({
-                blob: getDataURLContent(encoder.result as string),
-                contentType: req.getResponseHeader('Content-Type') || '',
-              })
-            }
-            encoder.readAsDataURL(req.response)
+          const encoder = new FileReader()
+          encoder.onloadend = () => {
+            resolve({
+              blob: getDataURLContent(encoder.result as string),
+              contentType: req.getResponseHeader('Content-Type') || '',
+            })
           }
+          encoder.readAsDataURL(req.response)
+        }
 
-          req.onreadystatechange = done
-          req.ontimeout = timeout
-          req.responseType = 'blob'
-          req.timeout = TIMEOUT
-          req.open('GET', url, true)
-          req.send()
-        },
-      )
+        req.onreadystatechange = done
+        req.ontimeout = timeout
+        req.responseType = 'blob'
+        req.timeout = TIMEOUT
+        req.open('GET', url, true)
+        req.send()
+      },
+    )
 
   const promise = deferred.catch(failed) as Promise<{
     blob: string
